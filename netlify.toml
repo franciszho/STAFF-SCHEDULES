@@ -1,0 +1,35 @@
+import { getStore } from '@netlify/blobs';
+
+const headers = {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'content-type',
+  'access-control-allow-methods': 'GET,POST,OPTIONS'
+};
+
+export default async (request) => {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+  try {
+    const store = getStore({ name: 'staff-scheduler-live', consistency: 'strong' });
+    const key = 'main-schedule';
+
+    if (request.method === 'GET') {
+      const data = await store.get(key, { type: 'json', consistency: 'strong' });
+      return new Response(JSON.stringify({ ok: true, data: data ?? null }), { status: 200, headers });
+    }
+
+    if (request.method === 'POST') {
+      const payload = await request.json();
+      if (!payload || typeof payload !== 'object') throw new Error('Invalid schedule payload');
+      payload.updatedAt = new Date().toISOString();
+      await store.setJSON(key, payload);
+      return new Response(JSON.stringify({ ok: true, updatedAt: payload.updatedAt }), { status: 200, headers });
+    }
+
+    return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), { status: 405, headers });
+  } catch (error) {
+    console.error(error);
+    return new Response(JSON.stringify({ ok: false, error: error?.message || 'Server error' }), { status: 500, headers });
+  }
+};
